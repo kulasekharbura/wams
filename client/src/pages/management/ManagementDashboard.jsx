@@ -9,11 +9,13 @@ const ManagementDashboard = () => {
 
   const fetchData = async () => {
     try {
-      const statsRes = await fetch("http://localhost:5000/api/mgmt/stats");
+      const statsRes = await fetch(
+        `${import.meta.env.VITE_API_URL}/mgmt/stats`,
+      );
       const statsData = await statsRes.json();
       if (statsRes.ok) setStats(statsData);
 
-      const ordersRes = await fetch("http://localhost:5000/api/orders");
+      const ordersRes = await fetch(`${import.meta.env.VITE_API_URL}/orders`);
       const ordersData = await ordersRes.json();
       if (ordersRes.ok) setOrders(ordersData);
     } catch (error) {
@@ -30,7 +32,7 @@ const ManagementDashboard = () => {
   const handleApprovePO = async (mongoId) => {
     try {
       // Management approval pushes PendingParts straight to InProduction
-      await fetch(`http://localhost:5000/api/orders/${mongoId}/status`, {
+      await fetch(`${import.meta.env.VITE_API_URL}/orders/${mongoId}/status`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ status: "InProduction" }),

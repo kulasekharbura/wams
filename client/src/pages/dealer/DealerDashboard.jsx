@@ -13,12 +13,12 @@ const DealerDashboard = () => {
   const fetchData = async () => {
     try {
       // Fetch available products catalog
-      const prodRes = await fetch("http://localhost:5000/api/products");
+      const prodRes = await fetch(`${import.meta.env.VITE_API_URL}/products`);
       if (prodRes.ok) setProducts(await prodRes.json());
 
       // Fetch ONLY this dealer's orders
       const ordRes = await fetch(
-        `http://localhost:5000/api/orders/dealer/${user._id}`,
+        `${import.meta.env.VITE_API_URL}/orders/dealer/${user._id}`,
       );
       if (ordRes.ok) setOrders(await ordRes.json());
     } catch (error) {
@@ -47,7 +47,7 @@ const DealerDashboard = () => {
     };
 
     try {
-      const res = await fetch("http://localhost:5000/api/orders", {
+      const res = await fetch(`${import.meta.env.VITE_API_URL}/orders`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(newOrder),
@@ -68,7 +68,7 @@ const DealerDashboard = () => {
     try {
       // We can reuse the status update endpoint to move it to a 'Cancelled' state or delete it
       const res = await fetch(
-        `http://localhost:5000/api/orders/${mongoId}/status`,
+        `${import.meta.env.VITE_API_URL}/orders/${mongoId}/status`,
         {
           method: "PUT",
           headers: { "Content-Type": "application/json" },

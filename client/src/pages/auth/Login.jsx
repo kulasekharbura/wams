@@ -15,17 +15,20 @@ const Login = () => {
 
     try {
       // 1. Call the Express backend we just built!
-      const response = await fetch("http://localhost:5000/api/auth/login", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
+      const response = await fetch(
+        `${import.meta.env.VITE_API_URL}/auth/login`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            username: username,
+            password: password,
+            role: role,
+          }),
         },
-        body: JSON.stringify({
-          username: username,
-          password: password,
-          role: role,
-        }),
-      });
+      );
 
       const data = await response.json();
 

@@ -8,7 +8,7 @@ const SupplierDashboard = () => {
 
   const fetchRFQs = async () => {
     try {
-      const res = await fetch("http://localhost:5000/api/quotations");
+      const res = await fetch(`${import.meta.env.VITE_API_URL}/quotations`);
       if (res.ok) {
         const data = await res.json();
         // FIXED: Filter specifically for "Pending Quote" to match the database schema
@@ -34,7 +34,7 @@ const SupplierDashboard = () => {
 
     try {
       const res = await fetch(
-        `http://localhost:5000/api/quotations/${mongoId}`,
+        `${import.meta.env.VITE_API_URL}/quotations/${mongoId}`,
         {
           method: "PUT",
           headers: { "Content-Type": "application/json" },

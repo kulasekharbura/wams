@@ -13,11 +13,11 @@ const InventoryDashboard = () => {
 
   const fetchData = async () => {
     try {
-      const prodRes = await fetch("http://localhost:5000/api/products");
+      const prodRes = await fetch(`${import.meta.env.VITE_API_URL}/products`);
       const prodData = await prodRes.json();
       if (prodRes.ok) setProductStock(prodData);
 
-      const ordRes = await fetch("http://localhost:5000/api/orders");
+      const ordRes = await fetch(`${import.meta.env.VITE_API_URL}/orders`);
       const ordData = await ordRes.json();
       if (ordRes.ok) setOrders(ordData);
     } catch (error) {
@@ -46,11 +46,14 @@ const InventoryDashboard = () => {
       if (stockAvailable) {
         nextState = getNextOrderState(nextState, ORDER_ACTIONS.STOCK_AVAILABLE);
         // Deduct from stock directly
-        await fetch(`http://localhost:5000/api/products/${productId}/stock`, {
-          method: "PUT",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ quantityDeducted: quantityNeeded }),
-        });
+        await fetch(
+          `${import.meta.env.VITE_API_URL}/products/${productId}/stock`,
+          {
+            method: "PUT",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ quantityDeducted: quantityNeeded }),
+          },
+        );
       } else {
         nextState = getNextOrderState(
           nextState,
@@ -58,7 +61,7 @@ const InventoryDashboard = () => {
         );
       }
 
-      await fetch(`http://localhost:5000/api/orders/${mongoId}/status`, {
+      await fetch(`${import.meta.env.VITE_API_URL}/orders/${mongoId}/status`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ status: nextState }),
@@ -77,7 +80,7 @@ const InventoryDashboard = () => {
         quantity: order.quantity,
       };
 
-      const res = await fetch("http://localhost:5000/api/quotations", {
+      const res = await fetch(`${import.meta.env.VITE_API_URL}/quotations`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(rfqData),
@@ -85,11 +88,14 @@ const InventoryDashboard = () => {
 
       if (res.ok) {
         // Automatically transition order to PendingParts
-        await fetch(`http://localhost:5000/api/orders/${order._id}/status`, {
-          method: "PUT",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ status: ORDER_STATES.PENDING_PARTS }),
-        });
+        await fetch(
+          `${import.meta.env.VITE_API_URL}/orders/${order._id}/status`,
+          {
+            method: "PUT",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ status: ORDER_STATES.PENDING_PARTS }),
+          },
+        );
         alert(`RFQ ${rfqData.rfqId} sent to Supplier Dashboard!`);
         fetchData();
       }
@@ -109,7 +115,7 @@ const InventoryDashboard = () => {
 
     try {
       const res = await fetch(
-        `http://localhost:5000/api/orders/${mongoId}/status`,
+        `${import.meta.env.VITE_API_URL}/orders/${mongoId}/status`,
         {
           method: "PUT",
           headers: { "Content-Type": "application/json" },
@@ -332,7 +338,7 @@ const InventoryDashboard = () => {
 
                     {o.status === ORDER_STATES.FULFILLED && (
                       <span style={{ color: "green", fontWeight: "bold" }}>
-                        ✅ Fulfilled
+                        Fulfilled
                       </span>
                     )}
                   </td>

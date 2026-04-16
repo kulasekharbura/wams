@@ -11,7 +11,13 @@ const productRoutes = require("./routes/productRoutes");
 const quotationRoutes = require("./routes/quotationRoutes");
 const mgmtRoutes = require("./routes/mgmtRoutes");
 
-app.use(cors());
+app.use(
+  cors({
+    origin: ["http://localhost:5173", "https://YOUR-VERCEL-URL.vercel.app"],
+    credentials: true,
+  }),
+);
+
 app.use(express.json());
 
 app.use("/api/auth", authRoutes);
@@ -36,7 +42,7 @@ mongoose
     console.log("-----------------------------------------");
     console.log("Successfully connected to MongoDB.");
     app.listen(PORT, () => {
-      console.log(`Server running on http://localhost:${PORT}`);
+      console.log(`Server running on port ${PORT}`);
       console.log("-----------------------------------------");
     });
   })
