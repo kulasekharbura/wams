@@ -13,7 +13,7 @@ const mgmtRoutes = require("./routes/mgmtRoutes");
 
 app.use(
   cors({
-    origin: ["http://localhost:5173", "https://YOUR-VERCEL-URL.vercel.app"],
+    origin: ["http://localhost:5173", "https://wams-mu.vercel.app/"],
     credentials: true,
   }),
 );
