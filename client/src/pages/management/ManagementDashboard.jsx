@@ -4,22 +4,43 @@ import { useAuth } from "../../context/AuthContext";
 const ManagementDashboard = () => {
   const { user, logout } = useAuth();
   const [stats, setStats] = useState(null);
+  const [orders, setOrders] = useState([]);
   const [loading, setLoading] = useState(true);
 
+  const fetchData = async () => {
+    try {
+      const statsRes = await fetch("http://localhost:5000/api/mgmt/stats");
+      const statsData = await statsRes.json();
+      if (statsRes.ok) setStats(statsData);
+
+      const ordersRes = await fetch("http://localhost:5000/api/orders");
+      const ordersData = await ordersRes.json();
+      if (ordersRes.ok) setOrders(ordersData);
+    } catch (error) {
+      console.error("Failed to fetch system data:", error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   useEffect(() => {
-    const fetchStats = async () => {
-      try {
-        const response = await fetch("http://localhost:5000/api/mgmt/stats");
-        const data = await response.json();
-        if (response.ok) setStats(data);
-      } catch (error) {
-        console.error("Failed to fetch system analytics:", error);
-      } finally {
-        setLoading(false);
-      }
-    };
-    fetchStats();
+    fetchData();
   }, []);
+
+  const handleApprovePO = async (mongoId) => {
+    try {
+      // Management approval pushes PendingParts straight to InProduction
+      await fetch(`http://localhost:5000/api/orders/${mongoId}/status`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status: "InProduction" }),
+      });
+      fetchData(); // Refresh Queue
+      alert("Manufacturing Plan & Supplier Order Approved.");
+    } catch (error) {
+      console.error("Approval failed:", error);
+    }
+  };
 
   if (loading)
     return <div style={{ padding: "2rem" }}>Loading System Analytics...</div>;
@@ -56,23 +77,105 @@ const ManagementDashboard = () => {
         }}
       >
         <div style={tileStyle("#007bff")}>
-          <h3>{stats?.totalOrders}</h3>
+          <h3>{stats?.totalOrders || 0}</h3>
           <p>Total Orders</p>
         </div>
         <div style={tileStyle("#28a745")}>
-          <h3>{stats?.totalInventory}</h3>
+          <h3>{stats?.totalInventory || 0}</h3>
           <p>Total Stock units</p>
         </div>
         <div style={tileStyle("#ffc107", "#000")}>
-          <h3>{stats?.productionBacklog}</h3>
+          <h3>{stats?.productionBacklog || 0}</h3>
           <p>Orders in Production</p>
         </div>
         <div
           style={tileStyle(stats?.lowStockAlerts > 0 ? "#dc3545" : "#6c757d")}
         >
-          <h3>{stats?.lowStockAlerts}</h3>
+          <h3>{stats?.lowStockAlerts || 0}</h3>
           <p>Low Stock Alerts</p>
         </div>
+      </div>
+
+      {/* --- Approvals Queue --- */}
+      <div
+        style={{
+          marginTop: "3rem",
+          padding: "1.5rem",
+          border: "1px solid #ffc107",
+          borderRadius: "8px",
+          backgroundColor: "#fffdf5",
+        }}
+      >
+        <h3>Approvals Queue (Pending Supplier Orders)</h3>
+        <table
+          style={{
+            width: "100%",
+            borderCollapse: "collapse",
+            marginTop: "1rem",
+          }}
+        >
+          <thead>
+            <tr style={{ textAlign: "left", borderBottom: "2px solid #ddd" }}>
+              <th style={{ padding: "1rem" }}>Order ID</th>
+              <th style={{ padding: "1rem" }}>Product</th>
+              <th style={{ padding: "1rem" }}>Current State</th>
+              <th style={{ padding: "1rem" }}>Action</th>
+            </tr>
+          </thead>
+          <tbody>
+            {orders.filter((o) => o.status === "PendingParts").length === 0 ? (
+              <tr>
+                <td
+                  colSpan="4"
+                  style={{
+                    padding: "1rem",
+                    textAlign: "center",
+                    color: "#666",
+                  }}
+                >
+                  No pending manufacturing plans require approval.
+                </td>
+              </tr>
+            ) : (
+              orders
+                .filter((o) => o.status === "PendingParts")
+                .map((o) => (
+                  <tr key={o._id} style={{ borderBottom: "1px solid #eee" }}>
+                    <td style={{ padding: "1rem" }}>{o.orderId}</td>
+                    <td style={{ padding: "1rem" }}>{o.productName}</td>
+                    <td style={{ padding: "1rem" }}>
+                      <span
+                        style={{
+                          color: "#856404",
+                          backgroundColor: "#fff3cd",
+                          padding: "4px 8px",
+                          borderRadius: "4px",
+                          fontSize: "0.85rem",
+                        }}
+                      >
+                        Waiting Approval
+                      </span>
+                    </td>
+                    <td style={{ padding: "1rem" }}>
+                      <button
+                        onClick={() => handleApprovePO(o._id)}
+                        style={{
+                          backgroundColor: "#28a745",
+                          color: "white",
+                          border: "none",
+                          padding: "8px 12px",
+                          borderRadius: "4px",
+                          cursor: "pointer",
+                        }}
+                      >
+                        Approve Plan
+                      </button>
+                    </td>
+                  </tr>
+                ))
+            )}
+          </tbody>
+        </table>
       </div>
 
       {/* --- Detailed Inventory Summary --- */}
@@ -96,11 +199,11 @@ const ManagementDashboard = () => {
             <tr style={{ textAlign: "left", borderBottom: "2px solid #eee" }}>
               <th style={{ padding: "1rem" }}>Product Name</th>
               <th style={{ padding: "1rem" }}>Current Stock</th>
-              <th style={{ padding: "1rem" }}>Status</th>
+              <th style={{ padding: "1rem" }}>Health Status</th>
             </tr>
           </thead>
           <tbody>
-            {stats?.productSummary.map((item, index) => (
+            {stats?.productSummary?.map((item, index) => (
               <tr key={index} style={{ borderBottom: "1px solid #f9f9f9" }}>
                 <td style={{ padding: "1rem" }}>{item.name}</td>
                 <td style={{ padding: "1rem" }}>{item.stock}</td>

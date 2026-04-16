@@ -3,61 +3,60 @@ import { useAuth } from "../../context/AuthContext";
 
 const SupplierDashboard = () => {
   const { user, logout } = useAuth();
-
   const [rfqs, setRfqs] = useState([]);
-  const [selectedRfq, setSelectedRfq] = useState(null);
-  const [pricePerUnit, setPricePerUnit] = useState("");
-  const [deliveryDate, setDeliveryDate] = useState("");
+  const [quotes, setQuotes] = useState({}); // Store input values for quotes
 
-  // --- 1. Fetch Real RFQs from MongoDB ---
-  const fetchQuotations = async () => {
+  const fetchRFQs = async () => {
     try {
-      const response = await fetch("http://localhost:5000/api/quotations");
-      const data = await response.json();
-      if (response.ok) setRfqs(data);
+      const res = await fetch("http://localhost:5000/api/quotations");
+      if (res.ok) {
+        const data = await res.json();
+        // FIXED: Filter specifically for "Pending Quote" to match the database schema
+        setRfqs(data.filter((q) => q.status === "Pending Quote"));
+      }
     } catch (error) {
-      console.error("Failed to fetch quotations:", error);
+      console.error("Failed to fetch RFQs:", error);
     }
   };
 
   useEffect(() => {
-    fetchQuotations();
+    fetchRFQs();
   }, []);
 
-  // --- 2. Submit Real Quote to Backend ---
-  const handleSubmitQuote = async (e) => {
-    e.preventDefault();
-    if (!selectedRfq) return;
+  const handleQuoteChange = (rfqId, value) => {
+    setQuotes({ ...quotes, [rfqId]: value });
+  };
+
+  const handleSubmitQuote = async (rfqId, mongoId) => {
+    const price = quotes[rfqId];
+    if (!price || isNaN(price) || price <= 0)
+      return alert("Please enter a valid price amount.");
 
     try {
-      const response = await fetch(
-        `http://localhost:5000/api/quotations/${selectedRfq._id}`,
+      const res = await fetch(
+        `http://localhost:5000/api/quotations/${mongoId}`,
         {
           method: "PUT",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
-            pricePerUnit: parseFloat(pricePerUnit),
-            expectedDelivery: deliveryDate,
+            status: "Quote Submitted", // Updates to the next stage in the schema
+            pricePerUnit: parseFloat(price),
           }),
         },
       );
 
-      if (response.ok) {
-        alert(`Quotation submitted successfully for ${selectedRfq.rfqId}!`);
-        setSelectedRfq(null);
-        setPricePerUnit("");
-        setDeliveryDate("");
-        fetchQuotations(); // Refresh the list
-      } else {
-        alert("Failed to submit quotation.");
+      if (res.ok) {
+        alert("Quotation submitted to Management for approval.");
+        setQuotes({ ...quotes, [rfqId]: "" });
+        fetchRFQs(); // Remove from pending list
       }
     } catch (error) {
-      console.error("Error submitting quote:", error);
+      console.error("Failed to submit quote:", error);
     }
   };
 
   return (
-    <div style={{ padding: "2rem", maxWidth: "900px", margin: "0 auto" }}>
+    <div style={{ padding: "2rem", maxWidth: "1000px", margin: "0 auto" }}>
       <div
         style={{
           display: "flex",
@@ -65,123 +64,16 @@ const SupplierDashboard = () => {
           alignItems: "center",
         }}
       >
-        <h2>Supplier Portal - Welcome, {user.username}</h2>
-        <button
-          onClick={logout}
-          style={{ padding: "0.5rem 1rem", cursor: "pointer" }}
-        >
+        <h2>Supplier Portal - {user.username}</h2>
+        <button onClick={logout} style={{ padding: "0.5rem 1rem" }}>
           Logout
         </button>
       </div>
+      <p style={{ color: "#666" }}>
+        Review Requests for Quotation (RFQs) and submit your pricing.
+      </p>
       <hr />
 
-      <div style={{ display: "flex", gap: "2rem", marginTop: "2rem" }}>
-        {/* Left Column: Pending RFQs */}
-        <div
-          style={{
-            flex: 1,
-            padding: "1.5rem",
-            border: "1px solid #ccc",
-            borderRadius: "8px",
-          }}
-        >
-          <h3>Pending RFQs</h3>
-          {rfqs.filter((r) => r.status === "Pending Quote").length === 0 ? (
-            <p>No pending requests.</p>
-          ) : (
-            <ul style={{ listStyleType: "none", padding: 0 }}>
-              {rfqs
-                .filter((r) => r.status === "Pending Quote")
-                .map((rfq) => (
-                  <li
-                    key={rfq._id}
-                    style={{
-                      marginBottom: "1rem",
-                      padding: "1rem",
-                      backgroundColor: "#f8f9fa",
-                      borderRadius: "4px",
-                      border: "1px solid #dee2e6",
-                    }}
-                  >
-                    <strong>{rfq.rfqId}</strong>: {rfq.quantity}x {rfq.partName}
-                    <br />
-                    <button
-                      onClick={() => setSelectedRfq(rfq)}
-                      style={{
-                        marginTop: "0.5rem",
-                        padding: "0.4rem 0.8rem",
-                        cursor: "pointer",
-                      }}
-                    >
-                      Draft Quote
-                    </button>
-                  </li>
-                ))}
-            </ul>
-          )}
-        </div>
-
-        {/* Right Column: Submission Form */}
-        <div
-          style={{
-            flex: 1,
-            padding: "1.5rem",
-            border: "1px solid #ccc",
-            borderRadius: "8px",
-            backgroundColor: selectedRfq ? "#f0f7ff" : "transparent",
-          }}
-        >
-          <h3>Submit Quotation</h3>
-          {!selectedRfq ? (
-            <p>Select an RFQ to begin.</p>
-          ) : (
-            <form
-              onSubmit={handleSubmitQuote}
-              style={{ display: "flex", flexDirection: "column", gap: "1rem" }}
-            >
-              <div>
-                <strong>Item:</strong> {selectedRfq.partName}
-              </div>
-              <div>
-                <label>Price Per Unit ($):</label>
-                <input
-                  type="number"
-                  step="0.01"
-                  value={pricePerUnit}
-                  onChange={(e) => setPricePerUnit(e.target.value)}
-                  required
-                  style={{ width: "100%", padding: "0.5rem" }}
-                />
-              </div>
-              <div>
-                <label>Delivery Date:</label>
-                <input
-                  type="date"
-                  value={deliveryDate}
-                  onChange={(e) => setDeliveryDate(e.target.value)}
-                  required
-                  style={{ width: "100%", padding: "0.5rem" }}
-                />
-              </div>
-              <button
-                type="submit"
-                style={{
-                  padding: "0.75rem",
-                  cursor: "pointer",
-                  backgroundColor: "#28a745",
-                  color: "white",
-                  border: "none",
-                  borderRadius: "4px",
-                }}
-              >
-                Submit Official Quote
-              </button>
-            </form>
-          )}
-        </div>
-      </div>
-
-      {/* Bottom: History Table */}
       <div
         style={{
           marginTop: "2rem",
@@ -190,37 +82,77 @@ const SupplierDashboard = () => {
           borderRadius: "8px",
         }}
       >
-        <h3>Submitted Quotations History</h3>
+        <h3>Pending RFQs</h3>
         <table
           style={{
             width: "100%",
-            borderCollapse: "collapse",
             textAlign: "left",
+            borderCollapse: "collapse",
+            marginTop: "1rem",
           }}
         >
           <thead>
             <tr style={{ borderBottom: "2px solid #ccc" }}>
               <th style={{ padding: "0.5rem" }}>RFQ ID</th>
-              <th style={{ padding: "0.5rem" }}>Part</th>
-              <th style={{ padding: "0.5rem" }}>Total Amount</th>
-              <th style={{ padding: "0.5rem" }}>Status</th>
+              <th>Requested Part</th>
+              <th>Quantity Required</th>
+              <th>Your Quote ($)</th>
+              <th>Action</th>
             </tr>
           </thead>
           <tbody>
-            {rfqs
-              .filter((r) => r.status === "Quote Submitted")
-              .map((rfq) => (
+            {rfqs.length === 0 ? (
+              <tr>
+                <td
+                  colSpan="5"
+                  style={{ padding: "1rem", textAlign: "center" }}
+                >
+                  No pending RFQs at this time.
+                </td>
+              </tr>
+            ) : (
+              rfqs.map((rfq) => (
                 <tr key={rfq._id} style={{ borderBottom: "1px solid #eee" }}>
-                  <td style={{ padding: "0.5rem" }}>{rfq.rfqId}</td>
-                  <td style={{ padding: "0.5rem" }}>{rfq.partName}</td>
-                  <td style={{ padding: "0.5rem" }}>
-                    ${rfq.totalAmount?.toFixed(2)}
+                  <td style={{ padding: "0.5rem", fontWeight: "bold" }}>
+                    {rfq.rfqId}
                   </td>
-                  <td style={{ padding: "0.5rem", color: "green" }}>
-                    {rfq.status}
+                  <td>{rfq.partName}</td>
+                  <td>{rfq.quantity} units</td>
+                  <td>
+                    <input
+                      type="number"
+                      min="1"
+                      placeholder="Enter price..."
+                      value={quotes[rfq.rfqId] || ""}
+                      onChange={(e) =>
+                        handleQuoteChange(rfq.rfqId, e.target.value)
+                      }
+                      style={{
+                        padding: "0.4rem",
+                        width: "120px",
+                        borderRadius: "4px",
+                        border: "1px solid #ccc",
+                      }}
+                    />
+                  </td>
+                  <td>
+                    <button
+                      onClick={() => handleSubmitQuote(rfq.rfqId, rfq._id)}
+                      style={{
+                        backgroundColor: "#28a745",
+                        color: "white",
+                        border: "none",
+                        padding: "6px 12px",
+                        borderRadius: "4px",
+                        cursor: "pointer",
+                      }}
+                    >
+                      Submit Quote
+                    </button>
                   </td>
                 </tr>
-              ))}
+              ))
+            )}
           </tbody>
         </table>
       </div>

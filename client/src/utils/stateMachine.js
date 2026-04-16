@@ -54,10 +54,10 @@ export const getNextOrderState = (currentState, action) => {
       if (action === ORDER_ACTIONS.PAYMENT_OK) return ORDER_STATES.FULFILLED;
       break;
     case ORDER_STATES.FULFILLED:
-      return currentState;
+      return currentState; // Terminal state
     default:
       console.error(`Unknown state: ${currentState}`);
       return currentState;
   }
-  return currentState;
+  return currentState; // Fallback to current state if action is invalid for the state
 };

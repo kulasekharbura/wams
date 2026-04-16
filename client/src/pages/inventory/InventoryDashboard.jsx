@@ -45,6 +45,7 @@ const InventoryDashboard = () => {
 
       if (stockAvailable) {
         nextState = getNextOrderState(nextState, ORDER_ACTIONS.STOCK_AVAILABLE);
+        // Deduct from stock directly
         await fetch(`http://localhost:5000/api/products/${productId}/stock`, {
           method: "PUT",
           headers: { "Content-Type": "application/json" },
@@ -68,11 +69,10 @@ const InventoryDashboard = () => {
     }
   };
 
-  // --- NEW: Trigger Request to Supplier ---
   const handleRequestQuote = async (order) => {
     try {
       const rfqData = {
-        rfqId: `RFQ-${order.orderId.split("-")[1]}`,
+        rfqId: `RFQ-${order.orderId.split("-")[1] || Math.floor(Math.random() * 1000)}`,
         partName: `Raw Materials for ${order.productName}`,
         quantity: order.quantity,
       };
@@ -83,9 +83,50 @@ const InventoryDashboard = () => {
         body: JSON.stringify(rfqData),
       });
 
-      if (res.ok) alert(`RFQ ${rfqData.rfqId} sent to Supplier Dashboard!`);
+      if (res.ok) {
+        // Automatically transition order to PendingParts
+        await fetch(`http://localhost:5000/api/orders/${order._id}/status`, {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ status: ORDER_STATES.PENDING_PARTS }),
+        });
+        alert(`RFQ ${rfqData.rfqId} sent to Supplier Dashboard!`);
+        fetchData();
+      }
     } catch (error) {
       console.error("Error sending RFQ:", error);
+    }
+  };
+
+  // Helper method for standard sequential status updates
+  const handleUpdateStatus = async (
+    mongoId,
+    nextAction,
+    currentStatus,
+    additionalData = {},
+  ) => {
+    const nextState = getNextOrderState(currentStatus, nextAction);
+
+    try {
+      const res = await fetch(
+        `http://localhost:5000/api/orders/${mongoId}/status`,
+        {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            status: nextState,
+            productId: additionalData.productId,
+            quantity: additionalData.quantity,
+          }),
+        },
+      );
+
+      if (res.ok) {
+        fetchData();
+        alert(`Order moved to: ${nextState}`);
+      }
+    } catch (error) {
+      console.error("Status update failed:", error);
     }
   };
 
@@ -103,22 +144,25 @@ const InventoryDashboard = () => {
       </div>
       <hr />
       <div style={{ display: "flex", gap: "2rem", marginTop: "2rem" }}>
+        {/* Stock Panel */}
         <div
           style={{
             flex: 1,
             padding: "1.5rem",
             border: "1px solid #ccc",
             borderRadius: "8px",
+            height: "fit-content",
           }}
         >
           <h3>Stock</h3>
           {productStock.map((p) => (
-            <div key={p._id}>
+            <div key={p._id} style={{ marginBottom: "0.5rem" }}>
               {p.productName}: <strong>{p.stockAvailable}</strong>
             </div>
           ))}
         </div>
 
+        {/* Order Queue Panel */}
         <div
           style={{
             flex: 2,
@@ -128,10 +172,16 @@ const InventoryDashboard = () => {
           }}
         >
           <h3>Order Queue</h3>
-          <table style={{ width: "100%", textAlign: "left" }}>
+          <table
+            style={{
+              width: "100%",
+              textAlign: "left",
+              borderCollapse: "collapse",
+            }}
+          >
             <thead>
-              <tr>
-                <th>Order ID</th>
+              <tr style={{ borderBottom: "2px solid #ccc" }}>
+                <th style={{ padding: "0.5rem" }}>Order ID</th>
                 <th>Product</th>
                 <th>Status</th>
                 <th>Action</th>
@@ -140,13 +190,22 @@ const InventoryDashboard = () => {
             <tbody>
               {orders.map((o) => (
                 <tr key={o._id} style={{ borderBottom: "1px solid #eee" }}>
-                  <td>{o.orderId}</td>
+                  <td style={{ padding: "0.5rem" }}>{o.orderId}</td>
                   <td>{o.productName}</td>
                   <td>
-                    <small>{o.status}</small>
+                    <small
+                      style={{
+                        backgroundColor: "#e9ecef",
+                        padding: "2px 6px",
+                        borderRadius: "4px",
+                      }}
+                    >
+                      {o.status}
+                    </small>
                   </td>
                   <td>
-                    {o.status === "UnprocessedOrder" && (
+                    {/* Step: Initial Processing */}
+                    {o.status === ORDER_STATES.UNPROCESSED && (
                       <button
                         onClick={() =>
                           handleProcessOrder(
@@ -161,19 +220,120 @@ const InventoryDashboard = () => {
                         Process
                       </button>
                     )}
-                    {/* BUTTON TO SEND TO SUPPLIER */}
-                    {o.status === "PartChecking" && (
+
+                    {/* Step: Requesting Parts */}
+                    {o.status === ORDER_STATES.PART_CHECKING && (
                       <button
                         onClick={() => handleRequestQuote(o)}
                         style={{
                           backgroundColor: "#ffc107",
                           border: "none",
+                          padding: "5px 10px",
                           borderRadius: "4px",
-                          padding: "5px",
+                          cursor: "pointer",
                         }}
                       >
                         Request Quote
                       </button>
+                    )}
+
+                    {/* Step: Receiving Parts */}
+                    {o.status === ORDER_STATES.PENDING_PARTS && (
+                      <button
+                        onClick={() =>
+                          handleUpdateStatus(
+                            o._id,
+                            ORDER_ACTIONS.PARTS_DELIVERED,
+                            o.status,
+                          )
+                        }
+                        style={{
+                          backgroundColor: "#17a2b8",
+                          color: "white",
+                          border: "none",
+                          padding: "5px 10px",
+                          borderRadius: "4px",
+                          cursor: "pointer",
+                        }}
+                      >
+                        Receive Parts & Start Mfg
+                      </button>
+                    )}
+
+                    {/* Step: Finishing Production */}
+                    {o.status === ORDER_STATES.IN_PRODUCTION && (
+                      <button
+                        onClick={() =>
+                          handleUpdateStatus(
+                            o._id,
+                            ORDER_ACTIONS.PRODUCTION_DONE,
+                            o.status,
+                            { productId: o.productId, quantity: o.quantity },
+                          )
+                        }
+                        style={{
+                          backgroundColor: "#007bff",
+                          color: "white",
+                          border: "none",
+                          padding: "5px 10px",
+                          borderRadius: "4px",
+                          cursor: "pointer",
+                        }}
+                      >
+                        Complete Production
+                      </button>
+                    )}
+
+                    {/* Step: Billing */}
+                    {o.status === ORDER_STATES.PRODUCTION_COMPLETED && (
+                      <button
+                        onClick={() =>
+                          handleUpdateStatus(
+                            o._id,
+                            ORDER_ACTIONS.GENERATE_BILL,
+                            o.status,
+                          )
+                        }
+                        style={{
+                          backgroundColor: "#6c757d",
+                          color: "white",
+                          border: "none",
+                          padding: "5px 10px",
+                          borderRadius: "4px",
+                          cursor: "pointer",
+                        }}
+                      >
+                        Generate Bill
+                      </button>
+                    )}
+
+                    {/* Final Step: Fulfillment */}
+                    {o.status === ORDER_STATES.PENDING_BILLING && (
+                      <button
+                        onClick={() =>
+                          handleUpdateStatus(
+                            o._id,
+                            ORDER_ACTIONS.PAYMENT_OK,
+                            o.status,
+                          )
+                        }
+                        style={{
+                          backgroundColor: "#28a745",
+                          color: "white",
+                          border: "none",
+                          padding: "5px 10px",
+                          borderRadius: "4px",
+                          cursor: "pointer",
+                        }}
+                      >
+                        Confirm Payment & Fulfill
+                      </button>
+                    )}
+
+                    {o.status === ORDER_STATES.FULFILLED && (
+                      <span style={{ color: "green", fontWeight: "bold" }}>
+                        ✅ Fulfilled
+                      </span>
                     )}
                   </td>
                 </tr>
